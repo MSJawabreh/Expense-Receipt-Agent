@@ -1,0 +1,1953 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "subject:\"Expense Claim\""
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -768,
+        240
+      ],
+      "id": "805ca398-a58b-43bc-bcff-e83804f54e7e",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P0GNfK2sw9rbjW9Y",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -544,
+        240
+      ],
+      "id": "321c721a-f7af-4ee7-9b85-8fa48b811c72",
+      "name": "Get a message",
+      "webhookId": "8d5c10bb-5dba-481f-8153-4c6a6ef58258",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P0GNfK2sw9rbjW9Y",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.ocr.space/parse/image",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "YOUR_OCR_SPACE_API_KEY"
+            },
+            {
+              "name": "OCREngine",
+              "value": "2"
+            },
+            {
+              "name": "isTable",
+              "value": "true"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "attachment_0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -96,
+        144
+      ],
+      "id": "edf2a0a8-aeaa-457c-8055-f62d4bfee418",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "let data = $input.item.json;\nif (Array.isArray(data)) {\n  data = data[0];\n}\n\nconst text = data.ParsedResults[0].ParsedText;\n\nconst lines = text.split(/\\r?\\n/).map(l => l.trim()).filter(l => l.length > 0);\nconst vendor = lines[0].replace(/^#\\s*/, '').replace(/\\t/g, ' ').trim();\n\nconst dateMatch = text.match(/Date:\\s*(\\d{4}-\\d{2}-\\d{2})/i);\nconst date = dateMatch ? dateMatch[1] : null;\n\n// \\b ensures we match the word \"TOTAL\" itself, not \"total\" inside \"Subtotal\"\nconst totalMatch = text.match(/\\bTOTAL\\b\\s+(SAR|USD|AED)?\\s*[\\r\\n\\t]*([\\d,]+\\.\\d{2})/i);\nconst currency = totalMatch && totalMatch[1] ? totalMatch[1].toUpperCase() : 'SAR';\nconst amount = totalMatch ? parseFloat(totalMatch[2].replace(/,/g, '')) : null;\n\nreturn {\n  json: {\n    Vendor: vendor,\n    Date: date,\n    Amount: amount,\n    Currency: currency\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        144
+      ],
+      "id": "90828acb-e050-4578-9060-d6fbfeb228dd",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Task Spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2012343774,
+          "mode": "list",
+          "cachedResultName": "Manager_Lookup",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=2012343774"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Employee_Email",
+              "lookupValue": "={{ $('Gmail Trigger').item.json.From.match(/<(.+)>/)?.[1] || $('Gmail Trigger').item.json.From }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        352,
+        144
+      ],
+      "id": "002863b3-c832-4511-ba63-130fd85883ae",
+      "name": "Get row(s) in sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "d6CFyoeVUoqh7HVE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "317ad67d-0778-4a25-896f-53ce5e147a65",
+              "leftValue": "={{ $json.Employee_Email ? true : false }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        576,
+        144
+      ],
+      "id": "765220e7-0dbe-4ea4-88bf-6dd1529fa309",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Code in JavaScript').item.json.Amount }}",
+                    "rightValue": "={{ $json.Auto_Approve_Limit_SAR }}",
+                    "operator": {
+                      "type": "number",
+                      "operation": "lte"
+                    },
+                    "id": "d3a1576c-9f47-4c0d-8e64-3043cb9106eb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Pending"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "884d2099-d028-4b2e-8d80-cb014114be9f",
+                    "leftValue": "={{ $('Code in JavaScript').item.json.Amount }}",
+                    "rightValue": "={{ $json.Auto_Approve_Limit_SAR }}",
+                    "operator": {
+                      "type": "number",
+                      "operation": "gt"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Awaiting Approval"
+            }
+          ]
+        },
+        "looseTypeValidation": "={{ false }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        800,
+        240
+      ],
+      "id": "887b98a9-dd29-4b17-9386-bff4feb4d934",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "40f72687-f6c0-493e-8673-289c2d5b3a88",
+              "name": "Request_ID",
+              "value": "={{ 'EXP-' + $now.format('yyyyMMddHHmmss') }}",
+              "type": "string"
+            },
+            {
+              "id": "09ab1f55-b7ac-42d9-abbc-c07e90154c02",
+              "name": "Employee_Name",
+              "value": "Unknown",
+              "type": "string"
+            },
+            {
+              "id": "df48c24f-ac08-47a0-a7bf-91fd29aad2df",
+              "name": "=Employee_Email",
+              "value": "={{ $('Gmail Trigger').item.json.From.match(/<(.+)>/)?.[1] || $('Gmail Trigger').item.json.From }}",
+              "type": "string"
+            },
+            {
+              "id": "5e69acb7-d126-4e6d-baf3-b1ba13c14057",
+              "name": "=Submission_Date",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "58e1860c-6bbc-4b16-b8e1-ea27767a66d9",
+              "name": "=Vendor",
+              "value": "={{ $('Code in JavaScript').item.json.Vendor }}",
+              "type": "string"
+            },
+            {
+              "id": "af6ec8af-f0df-4679-b939-a343693acc5c",
+              "name": "=Amount",
+              "value": "={{ $('Code in JavaScript').item.json.Amount }}",
+              "type": "number"
+            },
+            {
+              "id": "e4e7bdb7-bfe2-46b9-baeb-0cea529b8075",
+              "name": "=Currency",
+              "value": "={{ $('Code in JavaScript').item.json.Currency }}",
+              "type": "string"
+            },
+            {
+              "id": "274cbfec-7231-4da9-ac8a-34dce695989e",
+              "name": "Category",
+              "value": "Other",
+              "type": "string"
+            },
+            {
+              "id": "308d7485-5d35-477a-8a1f-9c7a601032cc",
+              "name": "Status",
+              "value": "Needs Review",
+              "type": "string"
+            },
+            {
+              "id": "887974af-4d62-4d23-833f-2115bbc4484f",
+              "name": "Manager_Email",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "d839b20b-e4c8-42a6-9232-67a620ffe921",
+              "name": "Notes",
+              "value": "Unknown sender - not found in Manager_Lookup",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        800,
+        -144
+      ],
+      "id": "c433dc61-ee3f-41df-b661-f4538461d3c7",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e08bbd5a-6462-4327-afe2-8199bed4ba5a",
+              "name": "Employee_Name",
+              "value": "={{ $json.Employee_Name }}",
+              "type": "string"
+            },
+            {
+              "id": "45d9f673-5443-46c2-af57-182432e3efa8",
+              "name": "Employee_Email",
+              "value": "={{ $json.Employee_Email }}",
+              "type": "string"
+            },
+            {
+              "id": "c5eaaa0d-a081-4e5e-aa0c-5bac1d66c04f",
+              "name": "Vendor",
+              "value": "={{ $('Code in JavaScript').item.json.Vendor }}",
+              "type": "string"
+            },
+            {
+              "id": "0acefcfe-7485-4d9f-ad84-2b12ce42ac38",
+              "name": "Amount",
+              "value": "={{ $('Code in JavaScript').item.json.Amount }}",
+              "type": "number"
+            },
+            {
+              "id": "d5facec4-a502-4bbe-b34e-60a698b8ae72",
+              "name": "Currency",
+              "value": "={{ $('Code in JavaScript').item.json.Currency }}",
+              "type": "string"
+            },
+            {
+              "id": "83de47ad-c6a9-4383-bded-9997d16c905f",
+              "name": "Category",
+              "value": "Other",
+              "type": "string"
+            },
+            {
+              "id": "0f2374ed-59fb-4dfe-8b48-fdacf47be6b8",
+              "name": "Status",
+              "value": "Pending",
+              "type": "string"
+            },
+            {
+              "id": "8a9fdd5a-2d17-4a26-bec8-4d879e701601",
+              "name": "=Manager_Email",
+              "value": "={{ $json.Manager_Email }}",
+              "type": "string"
+            },
+            {
+              "id": "241f18bc-767f-4c29-8282-45ff3c454581",
+              "name": "Notes",
+              "value": "Auto-extracted by n8n agent",
+              "type": "string"
+            },
+            {
+              "id": "9cfaa833-b3c0-49d5-9728-459e95647b47",
+              "name": "Request_ID",
+              "value": "={{ 'EXP-' + $now.format('yyyyMMddHHmmss') }}",
+              "type": "string"
+            },
+            {
+              "id": "3387b4f1-11d0-4eb7-b472-96437736a50b",
+              "name": "Submission_date",
+              "value": "={{ $now.format('yyyy-MM-dd') }}.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1024,
+        48
+      ],
+      "id": "c02b3415-8e2a-49c9-b72a-341a3564c9c8",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e08bbd5a-6462-4327-afe2-8199bed4ba5a",
+              "name": "Employee_Name",
+              "value": "={{ $json.Employee_Name }}",
+              "type": "string"
+            },
+            {
+              "id": "45d9f673-5443-46c2-af57-182432e3efa8",
+              "name": "Employee_Email",
+              "value": "={{ $json.Employee_Email }}",
+              "type": "string"
+            },
+            {
+              "id": "c5eaaa0d-a081-4e5e-aa0c-5bac1d66c04f",
+              "name": "Vendor",
+              "value": "={{ $('Code in JavaScript').item.json.Vendor }}",
+              "type": "string"
+            },
+            {
+              "id": "0acefcfe-7485-4d9f-ad84-2b12ce42ac38",
+              "name": "Amount",
+              "value": "={{ $('Code in JavaScript').item.json.Amount }}",
+              "type": "number"
+            },
+            {
+              "id": "d5facec4-a502-4bbe-b34e-60a698b8ae72",
+              "name": "Currency",
+              "value": "={{ $('Code in JavaScript').item.json.Currency }}",
+              "type": "string"
+            },
+            {
+              "id": "83de47ad-c6a9-4383-bded-9997d16c905f",
+              "name": "Category",
+              "value": "Other",
+              "type": "string"
+            },
+            {
+              "id": "0f2374ed-59fb-4dfe-8b48-fdacf47be6b8",
+              "name": "Status",
+              "value": "Awaiting Approval",
+              "type": "string"
+            },
+            {
+              "id": "8a9fdd5a-2d17-4a26-bec8-4d879e701601",
+              "name": "=Manager_Email",
+              "value": "={{ $json.Manager_Email }}",
+              "type": "string"
+            },
+            {
+              "id": "241f18bc-767f-4c29-8282-45ff3c454581",
+              "name": "Notes",
+              "value": "=Over {{ $json.Auto_Approve_Limit_SAR }} SAR - sent to manager",
+              "type": "string"
+            },
+            {
+              "id": "9cfaa833-b3c0-49d5-9728-459e95647b47",
+              "name": "Request_ID",
+              "value": "={{ 'EXP-' + $now.format('yyyyMMddHHmmss') }}",
+              "type": "string"
+            },
+            {
+              "id": "e8fe64b6-b721-4e79-ba89-c56461cc797e",
+              "name": "Manager_Name",
+              "value": "={{ $json.Manager_Name }}",
+              "type": "string"
+            },
+            {
+              "id": "223f8833-6ef4-4f2c-9a24-b465818c6ffb",
+              "name": "Auto_Approve_Limit_SAR",
+              "value": "={{ $json.Auto_Approve_Limit_SAR }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1024,
+        336
+      ],
+      "id": "dda2d73a-f920-437c-b34a-dbed1bf782bd",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Task Spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1170408777,
+          "mode": "list",
+          "cachedResultName": "Expense_Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1170408777"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Request_ID",
+              "displayName": "Request_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Employee_Name",
+              "displayName": "Employee_Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Employee_Email",
+              "displayName": "Employee_Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Submission_Date",
+              "displayName": "Submission_Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Vendor",
+              "displayName": "Vendor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount",
+              "displayName": "Amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Currency",
+              "displayName": "Currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Manager_Email",
+              "displayName": "Manager_Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1248,
+        336
+      ],
+      "id": "a87d992f-9fe2-4681-a851-5e1d1d256771",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "d6CFyoeVUoqh7HVE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Task Spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1170408777,
+          "mode": "list",
+          "cachedResultName": "Expense_Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1170408777"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Request_ID",
+              "displayName": "Request_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Employee_Name",
+              "displayName": "Employee_Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Employee_Email",
+              "displayName": "Employee_Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Submission_Date",
+              "displayName": "Submission_Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Vendor",
+              "displayName": "Vendor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount",
+              "displayName": "Amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Currency",
+              "displayName": "Currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Manager_Email",
+              "displayName": "Manager_Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1248,
+        48
+      ],
+      "id": "225ecff7-75a4-4768-8496-658c6290f584",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "d6CFyoeVUoqh7HVE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Employee_Email }}",
+        "subject": "=Expense Claim {{ $json.Request_ID }} received - {{ $json.Amount }} {{ $json.Currency }}",
+        "message": "=Hello {{ $json.Employee_Name }},\n\nYour expense claim has been logged. Here is what was read from your receipt:\n\nRequest ID : {{ $json.Request_ID }}\nVendor     : {{ $json.Vendor }}\nDate       : {{ $json.Submission_Date }}\nAmount     : {{ $json.Amount }} {{ $json.Currency }}\nCategory   : {{ $json.Category }}\nStatus     : {{ $json.Status }}\n\nIf any detail above is wrong, reply to this email and it will be corrected before processing.\n\nAutomated message - Expense Agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1472,
+        48
+      ],
+      "id": "0d7de9e9-ad03-49e9-ab5d-1abdbd78d802",
+      "name": "Send a message",
+      "webhookId": "93586c06-7afd-49e7-8089-3aef8629f5ef",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P0GNfK2sw9rbjW9Y",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Manager_Email }}",
+        "subject": "=Approval needed - {{ $json.Request_ID }} - {{ $json.Amount }} {{ $json.Currency }}",
+        "message": "=Hello {{ $json.Manager_Name }},<br><br>  {{ $json.Employee_Name }} has submitted an expense claim above the {{ $json.Auto_Approve_Limit_SAR }} SAR auto-approval limit and it needs your review.<br><br>  Request ID : {{ $json.Request_ID }}<br> Employee   : {{ $json.Employee_Name }} ({{ $json.Employee_Email }})<br> Vendor     : {{ $json.Vendor }}<br> Amount     : {{ $json.Amount }} {{ $json.Currency }}<br> Category   : {{ $json.Category }}<br><br>  Please reply APPROVED or REJECTED to this email.<br><br>  Automated message - Expense Agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1472,
+        240
+      ],
+      "id": "0eee0e95-31b0-4ca7-af6a-142f85f169ce",
+      "name": "Send a message1",
+      "webhookId": "5705c65c-a7eb-44f1-ae32-a76b32717da0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P0GNfK2sw9rbjW9Y",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Task Spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1170408777,
+          "mode": "list",
+          "cachedResultName": "Expense_Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1170408777"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Request_ID",
+              "displayName": "Request_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Employee_Name",
+              "displayName": "Employee_Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Employee_Email",
+              "displayName": "Employee_Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Submission_Date",
+              "displayName": "Submission_Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Vendor",
+              "displayName": "Vendor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount",
+              "displayName": "Amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Currency",
+              "displayName": "Currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Manager_Email",
+              "displayName": "Manager_Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1024,
+        -144
+      ],
+      "id": "4153f753-e26b-4ead-8f4a-320900033cdc",
+      "name": "Append row in sheet2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "d6CFyoeVUoqh7HVE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "msjawabreh07@gmail.com",
+        "subject": "Expense Claim needs review - unknown sender",
+        "message": "=An expense claim was received from an email address not found in Manager_Lookup.  Sender     : {{ $json.Employee_Email }} Vendor     : {{ $json.Vendor }} Amount     : {{ $json.Amount }} {{ $json.Currency }} Request ID : {{ $json.Request_ID }}  Please review manually and assign a manager.  Automated message - Expense Agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1248,
+        -144
+      ],
+      "id": "64f1ae21-6686-4efc-830e-0617827ff748",
+      "name": "Send a message2",
+      "webhookId": "7a00fb92-55fd-4bcc-af4d-cc3b140c6638",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P0GNfK2sw9rbjW9Y",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "190ba646-f491-45e7-9c77-716456af6054",
+              "leftValue": "=   {{ $binary.attachment_0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -320,
+        240
+      ],
+      "id": "56d2342f-9878-490c-bf78-e2f4617ed5c6",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Gmail Trigger').item.json.From.match(/<(.+)>/)?.[1] || $('Gmail Trigger').item.json.From }}",
+        "subject": "Hello,    Your expense claim email did not include a receipt attachment,   so it could not be processed. Please reply with the receipt   attached as an image or PDF.    Automated message - Expense Agent",
+        "message": "Hello,    Your expense claim email did not include a receipt attachment,   so it could not be processed. Please reply with the receipt   attached as an image or PDF.    Automated message - Expense Agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -96,
+        336
+      ],
+      "id": "d1a32bbe-c8c3-4c1c-b996-fbef30f37ed4",
+      "name": "Send a message4",
+      "webhookId": "651d6c69-01e5-462a-ae9c-402231bbf27e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P0GNfK2sw9rbjW9Y",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Subject: {{ $json.Subject }}\n\nReply: {{ $json.snippet }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You process manager replies to expense approval-request emails.\n\nThe Subject line contains a Request ID in the format EXP-XXXXXXXXXXXXXX \u2014 extract it exactly as it appears.\n\nRead the Reply text and determine the manager's decision. Treat words like \"approved\", \"approve\", \"yes\", \"go ahead\" as APPROVED. Treat words like \"rejected\", \"reject\", \"no\", \"denied\" as REJECTED. If the decision is not clearly one or the other, respond that it is unclear and do not update anything.\n\nSteps:\n1. Use the search tool to find the row in Expense_Log where Request_ID matches the extracted ID.\n2. If no matching row is found, stop and report that the request could not be found.\n3. If found, use the update tool to set that row's Status to \"Approved\" or \"Rejected\" based on the decision.\n4. Report back the Employee_Name, Employee_Email, Request_ID, and the final decision, so a confirmation email can be sent to the employee.\n\nDo not guess a Request ID or a decision if either is unclear. Do not update more than one row."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -352,
+        656
+      ],
+      "id": "0accf6a0-7adc-4add-ab34-25fa5fbac9c7",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.threadId }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        -416,
+        896
+      ],
+      "id": "956d4e9c-8485-404e-8ac4-1ff9b94656cb",
+      "name": "Simple Memory",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -544,
+        896
+      ],
+      "id": "9c734cd0-9b83-4607-b248-31d9cccf491b",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "Q35ZBaB8XZsCeM5M",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Task Spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1170408777,
+          "mode": "list",
+          "cachedResultName": "Expense_Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1170408777"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Request_ID",
+              "lookupValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('values0_Value', ``, 'string') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        -288,
+        896
+      ],
+      "id": "7836eea2-0ae0-45eb-b24d-fe5b81663334",
+      "name": "Get row(s) in sheet in Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "d6CFyoeVUoqh7HVE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "subject:\"Approval needed\""
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -768,
+        768
+      ],
+      "id": "fc7bf910-db97-4b22-90b0-da6d643f2911",
+      "name": "Gmail Trigger1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P0GNfK2sw9rbjW9Y",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Task Spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1170408777,
+          "mode": "list",
+          "cachedResultName": "Expense_Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1170408777"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": 0,
+            "Status": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Status', ``, 'string') }}",
+            "Request_ID": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Request_ID__using_to_match_', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "Request_ID"
+          ],
+          "schema": [
+            {
+              "id": "Request_ID",
+              "displayName": "Request_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Employee_Name",
+              "displayName": "Employee_Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Employee_Email",
+              "displayName": "Employee_Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Submission_Date",
+              "displayName": "Submission_Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Vendor",
+              "displayName": "Vendor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Amount",
+              "displayName": "Amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Currency",
+              "displayName": "Currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Manager_Email",
+              "displayName": "Manager_Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Manager_Name",
+              "displayName": "Manager_Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": ": Auto_Approve_Limit_SAR",
+              "displayName": ": Auto_Approve_Limit_SAR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Auto_Approve_Limit_SAR",
+              "displayName": "Auto_Approve_Limit_SAR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "threadId",
+              "displayName": "threadId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "snippet",
+              "displayName": "snippet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "payload",
+              "displayName": "payload",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sizeEstimate",
+              "displayName": "sizeEstimate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "historyId",
+              "displayName": "historyId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "internalDate",
+              "displayName": "internalDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "labels",
+              "displayName": "labels",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "From",
+              "displayName": "From",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "To",
+              "displayName": "To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "toolCallId",
+              "displayName": "toolCallId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        -160,
+        896
+      ],
+      "id": "e918278b-c039-4510-b2ab-f40d27dc9dba",
+      "name": "Update row in sheet in Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "d6CFyoeVUoqh7HVE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.output.employee_email }}",
+        "subject": "=Expense claim {{ $json.output.request_id }} - {{ $json.output.decision }}",
+        "message": "=Hello {{ $json.output.employee_name }},  Your expense claim {{ $json.output.request_id }} has been {{ $json.output.decision }} by your manager.  Automated message - Expense Agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        176,
+        768
+      ],
+      "id": "d3bfcd83-b774-4ee4-9746-e507f067ecca",
+      "name": "Send a message5",
+      "webhookId": "d82f86f9-bdb3-4839-890a-e59e566cf458",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P0GNfK2sw9rbjW9Y",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"employee_name\": \"Mohammad Ahmad\",\n  \"employee_email\": \"example@gmail.com\",\n  \"request_id\": \"EXP-20260823131123\",\n  \"decision\": \"Approved\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -32,
+        896
+      ],
+      "id": "388f779c-d882-44ef-98eb-6fc5640d0abd",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Employee_Email }}",
+        "subject": "=Expense Claim {{ $json.Request_ID }} received - {{ $json.Amount }} {{ $json.Currency }}",
+        "message": "=Hello {{ $json.Employee_Name }},\n\nYour expense claim has been logged. Here is what was read from your receipt:\n\nRequest ID : {{ $json.Request_ID }}\nVendor     : {{ $json.Vendor }}\nDate       : {{ $json.Submission_Date }}\nAmount     : {{ $json.Amount }} {{ $json.Currency }}\nCategory   : {{ $json.Category }}\nStatus     : {{ $json.Status }}\n\nIf any detail above is wrong, reply to this email and it will be corrected before processing.\n\nAutomated message - Expense Agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1472,
+        432
+      ],
+      "id": "751a740a-13fd-4b8f-9a6e-5c20fd8e8c15",
+      "name": "Send a message3",
+      "webhookId": "800eb6ff-7345-4c2e-83aa-0a4973dd0928",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P0GNfK2sw9rbjW9Y",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -768,
+        1088
+      ],
+      "id": "624f821a-4dbe-4091-8d0f-6f686b429b4b",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Task Spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1170408777,
+          "mode": "list",
+          "cachedResultName": "Expense_Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1170408777"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Awaiting Approval"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -544,
+        1088
+      ],
+      "id": "5cfa5ffd-67e5-4228-b986-67cd667811d2",
+      "name": "Get row(s) in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "d6CFyoeVUoqh7HVE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Manager_Email }}",
+        "subject": "=Reminder: approval needed - {{ $json.Request_ID }} - {{ $json.Amount }} {{ $json.Currency }}",
+        "message": "=Hello {{ $json.Manager_Name }}, this is a reminder that {{ $json.Employee_Name }}'s expense claim ({{ $json.Request_ID }}, {{ $json.Amount }} {{ $json.Currency }}) is still awaiting your approval. Please reply APPROVED or REJECTED.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -320,
+        1088
+      ],
+      "id": "a5fd19de-15ac-430b-b163-fe4be007f5b5",
+      "name": "Send a message6",
+      "webhookId": "757403ed-5aa7-4461-b21c-51988aa71e81",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P0GNfK2sw9rbjW9Y",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a message3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet2": {
+      "main": [
+        [
+          {
+            "node": "Send a message2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message1": {
+      "main": [
+        []
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message4": {
+      "main": [
+        []
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet in Google Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet in Google Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a message5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Send a message6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "1a9ce2ef-2b80-4d73-9a42-79665ce6f7ad",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ac03a78a7b32d60557b57d44e72051cfc6f87157d8ffd9d19a0043aa191f1dea"
+  },
+  "nodeGroups": [],
+  "id": "SNEEByaISDlndBYp",
+  "tags": []
+}
