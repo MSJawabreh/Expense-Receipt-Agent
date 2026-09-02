@@ -6,6 +6,10 @@ An end-to-end automation built in [n8n](https://n8n.io) that reads emailed expen
 
 This was completed as a structured n8n training assignment during my internship at AAFAQ Advanced Solutions, using sample/test data (fake receipts, my own email as the test employee). It's a genuinely thorough hands-on exercise covering triggers, attachment handling, external API calls, conditional routing, and error handling in n8n — not a copy-paste template.
 
+## Workflow diagram
+
+![Expense agent workflow diagram](./workflow-diagram.png)
+
 ## How it works
 
 1. **Trigger** — A Gmail trigger watches for incoming emails with the subject line containing "Expense Claim."
